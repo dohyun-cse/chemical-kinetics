@@ -27,6 +27,7 @@ reaction.show_ode()
 
 %% Solve ODE
 odefun = @(t,y) reaction.apply(y);
+% odefun = reaction.simplifiedReaction(); % simplify using symbolic
 odeopt = odeset('NonNegative', 1, 'Refine', 1);
 y0 = reaction.setInitialCondition({ ...
     'A', 1; ...

@@ -85,17 +85,13 @@ classdef Reaction < handle
         TrgIndexWithCatalyst = {}
         SrcIndexWithCatalyst = {}
         RateWithCatalyst     = {}
-        IsCatalyst           = {}
+        IsNOTCatalyst           = {}
     end
     methods
         % Create a reaction with given chemical names
         function reaction = Reaction(chemicals)
             if (isMATLABReleaseOlderThan("R2022b"))
                 error('R2022b or newer MATLAB ver. is required');
-            end
-
-            if ~isa(chemicals, 'cell')
-                error('chemical should be a cell of strings');
             end
 
             chemicals = chemicals(:).';
@@ -105,7 +101,7 @@ classdef Reaction < handle
                     error('Chemical name should not start with numeric value');
                 end
             end
-            reaction.ID = dictionary(chemicals, 1:length(chemicals));
+            reaction.ID = dictionary(string(chemicals), 1:length(chemicals));
             reaction.numChemical = numel(chemicals);
             reaction.chemicals = chemicals;
         end
@@ -154,12 +150,12 @@ classdef Reaction < handle
                 reaction.TrgIndexWithCatalyst{n,m} = reaction.ID(targ_srcs_rate_catalysts(:,1));
                 reaction.SrcIndexWithCatalyst{n,m} = reaction.ID(targ_srcs_rate_catalysts(:,2:m + 1));
                 reaction.RateWithCatalyst{n,m} = cell2mat(targ_srcs_rate_catalysts(:,m + 2));
-                reaction.IsCatalyst{n,m} = cell2mat(targ_srcs_rate_catalysts(:,m + 3 : end));
+                reaction.IsNOTCatalyst{n,m} = ~cell2mat(targ_srcs_rate_catalysts(:,m + 3 : end));
             else
                 reaction.TrgIndexWithCatalyst{n,m} = [reaction.TrgIndexWithCatalyst{n,m}; reaction.ID(targ_srcs_rate_catalysts(:,1:n))];
                 reaction.SrcIndexWithCatalyst{n,m} = [reaction.SrcIndexWithCatalyst{n,m}; reaction.ID(targ_srcs_rate_catalysts(:,n+1:n+m))];
                 reaction.RateWithCatalyst{n,m} = [reaction.RateWithCatalyst{n,m}; cell2mat(targ_srcs_rate_catalysts(:,n+m+1))];
-                reaction.IsCatalyst{n,m} = [reaction.IsCatalyst{n,m}; cell2mat(targ_srcs_rate_catalysts(:,m + 3 : n+m+2:end))];
+                reaction.IsNOTCatalyst{n,m} = [reaction.IsNOTCatalyst{n,m}; ~cell2mat(targ_srcs_rate_catalysts(:,m + 3 : n+m+2:end))];
             end
         end
 
@@ -210,8 +206,8 @@ classdef Reaction < handle
                             reaction.chemicals{reaction.TrgIndexWithCatalyst{n,m}(i, :)}, ...
                             reaction.chemicals{reaction.SrcIndexWithCatalyst{n,m}(i, :)});
                         fprintf(['Catalysts: ', ...
-                        strjoin(repmat({name_format}, 1, nnz(reaction.IsCatalyst{n,m}(i,:))), ', '), ...
-                        '\n'], reaction.chemicals{reaction.SrcIndexWithCatalyst{n,m}(i, reaction.IsCatalyst{n,m}(i,:))});
+                        strjoin(repmat({name_format}, 1, nnz(~reaction.IsNOTCatalyst{n,m}(i,:))), ', '), ...
+                        '\n'], reaction.chemicals{reaction.SrcIndexWithCatalyst{n,m}(i, ~reaction.IsNOTCatalyst{n,m}(i,:))});
                     end
                 end
             end
@@ -258,7 +254,7 @@ classdef Reaction < handle
                 for i = 1 : length(reaction.TrgIndexWithCatalyst{m})
                     trgidx = reaction.TrgIndexWithCatalyst{m}(i);
                     srcidx = reaction.SrcIndexWithCatalyst{m}(i,:);
-                    isCatalyst = reaction.IsCatalyst{m}(i,:);
+                    isNotCatalyst = reaction.IsNOTCatalyst{m}(i,:);
 
                     str = sprintf(format, reaction.RateWithCatalyst{m}(i), reaction.chemicals{srcidx});
                     odes{trgidx} = [odes{trgidx}, str];
@@ -266,7 +262,7 @@ classdef Reaction < handle
                     else, str(2) = '+';
                     end
                     for j = 1 : m
-                        if ~isCatalyst(j)
+                        if isNotCatalyst(j)
                             odes{srcidx(j)} = [odes{srcidx(j)}, str];
                         end
                     end
@@ -317,26 +313,80 @@ classdef Reaction < handle
             % d[trg_i]/dt += k*[src1]...[srcN]
             for n = 1 : size(reaction.RateWithCatalyst, 1)
                 for m = 1 : size(reaction.RateWithCatalyst, 2)
-                    if isempty(reaction.RateWithCatalyst{n,m})
+                    rate = reaction.RateWithCatalyst{n,m};
+                    if isempty(rate)
                         continue;
                     end
-                    current_reactions = reaction.RateWithCatalyst{n,m};
+                    trg = reaction.TrgIndexWithCatalyst{n,m};
+                    src = reaction.SrcIndexWithCatalyst{n,m};
+                    current_reactions = rate;
                     for i = 1 : m
                         current_reactions = current_reactions ...
-                            .*y(reaction.SrcIndexWithCatalyst{n,m}(:,i));
+                            .*y(src(:,i));
                     end
                     % add reaction to the target
                     z = z + accumarray(...
-                        reaction.TrgIndexWithCatalyst{n,m}(:), ...
+                        trg(:), ...
                         repmat(current_reactions, n, 1), ...
                         [reaction.numChemical, 1]);
                     % subtract reaction from 
                     z = z - accumarray(...
-                        reaction.SrcIndexWithCatalyst{n,m}(:), ...
-                        repmat(current_reactions, m, 1).*~reaction.IsCatalyst{n,m}(:), ...
+                        src(:), ...
+                        repmat(current_reactions, m, 1).*reaction.IsNOTCatalyst{n,m}(:), ...
                         [reaction.numChemical, 1]);
                 end
             end
+        end
+
+        % Get matlabFunction using symbolic computation.
+        % This can take a while, but function call will be faster
+        function dydt = simplifiedReaction(reaction)
+            y = sym('y', reaction.numChemical);
+            t = sym('t');
+            dydt = sym(accumarray(reaction.InjectionIndex, ...
+                reaction.InjectionRate, ...
+                [reaction.numChemical, 1]));
+            for n = 1 : size(reaction.Rate, 1)
+                for m = 1 : size(reaction.Rate, 2)
+                    if isempty(reaction.Rate{n, m})
+                        continue;
+                    end
+                    current_reactions = sym(reaction.Rate{n, m});
+                    for i = 1 : m
+                        current_reactions = current_reactions ...
+                            .*y(reaction.SrcIndex{n, m}(:,i));
+                    end
+                    for i = 1 : length(current_reactions)
+                        for trg = reaction.TrgIndex{n, m}(i, :)
+                            dydt(trg) = dydt(trg) + current_reactions(i);
+                        end
+                        for src = reaction.SrcIndex{n, m}(i, :)
+                            dydt(src) = dydt(src) - current_reactions(i);
+                        end
+                    end
+                end
+            end
+            for n = 1 : size(reaction.RateWithCatalyst, 1)
+                for m = 1 : size(reaction.RateWithCatalyst, 2)
+                    if isempty(reaction.RateWithCatalyst{n, m})
+                        continue;
+                    end
+                    current_reactions = sym(reaction.RateWithCatalyst{n, m});
+                    for i = 1 : m
+                        current_reactions = current_reactions ...
+                            .*y(reaction.SrcIndexWithCatalyst{n, m}(:,i));
+                    end
+                    for i = 1 : length(current_reactions)
+                        for trg = reaction.TrgIndexWithCatalyst{n, m}(i, :)
+                            dydt(trg) = dydt(trg) + current_reactions(i);
+                        end
+                        for src = reaction.SrcIndexWithCatalyst{n, m}(i, reaction.IsNOTCatalyst{n, m}(i,:))
+                            dydt(src) = dydt(src) - current_reactions(i);
+                        end
+                    end
+                end
+            end
+            dydt = matlabFunction(dydt, 'vars', {t, y});
         end
     end
 end
