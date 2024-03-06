@@ -18,12 +18,12 @@ alpha = 0.04;
 beta = 0.003;
 gamma = 0.05;
 
-reaction.AddReactionWithCatalyst(1, 2, { ... second order
-    'u', '<-', 'v', 'w', beta, false, true; ... u <- v + (w)
-    'w', '<-', 'v', 'v', gamma, false, true; ... w <- v + (v)
+reaction.AddReactionWithCatalyst(2, 1, { ... second order
+    'v', 'w', '->', 'u', beta, false, true; ... u <- v + (w)
+    'v', 'v', '->', 'w', gamma, false, true; ... w <- v + (v)
     });
 reaction.AddReaction(1, 1, { ... first order
-    'v', '<-', 'u',  alpha; ... C <- B
+    'u', '->', 'v',  alpha; ... C <- B
     });
 % show reactions
 reaction.show();
