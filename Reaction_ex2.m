@@ -2,9 +2,9 @@
 % 
 % Chemicals: u, v, w
 % Reactions:
-% v <- u
-% u + (w) <- v + (w) (w: catalyst)
-% w + (v) <- v + (v) (one of v is catalyst)
+% u -> v
+% v + (w) -> u + (w) (w: catalyst)
+% v + (v) -> w + (v) (one of v is catalyst)
 
 % Copyright 2024 Dohyun Kim / CC BY-NC
 

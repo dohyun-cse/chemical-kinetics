@@ -2,8 +2,8 @@
 % 
 % Chemicals: A, B, C
 % Reactions:
-% B <- 2A with k1 = 0.001 : Second order (2 chemicals -> 1 chemical)
-% C <- B  with k2 = 0.0015 : First order (1 chemical  -> 1 chemical)
+% 2A -> B with k1 = 0.001 : Second order (2 chemicals -> 1 chemical)
+% B  -> C with k2 = 0.0015 : First order (1 chemical  -> 1 chemical)
 %
 
 % Copyright 2024 Dohyun Kim / CC BY-NC
