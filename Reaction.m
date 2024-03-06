@@ -12,7 +12,7 @@ classdef Reaction < handle
     %   `AddReaction` should have the same order (same number of sources
     %   for each reaction).
     %   `reactions` should be in the following format:
-    %   {produced_chemical_name, source_chemical1_names, ..., rate; ...}
+    %   {produced_chemical_name, '<-' source_chemical1_names, ..., rate; ...}
     %   If external chemical injection is given, use
     %   `AddInjection(injection)` where
     %   injection = {injected_chemical_name, rate; ...}
@@ -27,19 +27,19 @@ classdef Reaction < handle
     % <USAGE>
     %   reaction = Reaction({'A', 'B', 'C'});
     %   reaction.AddReaction(1, 1, { ... produce 1 chem from 1 chem
-    %       'A', 'B', 1.0; ... A <- B with rate 1
-    %       'B', 'C', 2.0; ... B <- C with rate 2
+    %       'A', '<-', 'B', 1.0; ... A <- B with rate 1
+    %       'B', '<-', 'C', 2.0; ... B <- C with rate 2
     %       });
     %   reaction.AddReaction(1, 2, { ... produce 1 chem from 2 chem
-    %       'B', 'A', 'A', 1.0; ... B <- 2A = A + A with rate 1.0
+    %       'B', '<-', 'A', 'A', 1.0; ... B <- 2A = A + A with rate 1.0
     %       });
     %   % reaction with one acting as a catalysts
     %   reaction.AddReactionWithCatalysts(1, 2, { ... produce 1 chem from 2 chem
-    %       'B', 'A', 'C', 1.0, true, false; ... B + (C) <- A + (C)
+    %       'B', '<-', 'A', 'C', 1.0, true, false; ... B + (C) <- A + (C)
     %       });
     %   % equivalently,
     %   reaction.AddReaction(2, 2, { ... produce 2 chem from 2 chem
-    %       'B', 'C', 'A', 'C', 1.0; ... B + (A) <- A + (A)
+    %       'B', 'C', '<-', 'A', 'C', 1.0; ... B + (A) <- A + (A)
     %       });
     %   reaction.show() % print all reactions on the command window
     %   reaction.show('%.4f') % print all reactions with formatted rate
@@ -119,16 +119,15 @@ classdef Reaction < handle
         % Add reaction A1 + ... + An <- S1 + ... + Sm where
         % targ_rate = {A1, ..., An, S1, ..., Sm, k; ...} with n,m > 0
         function AddReaction(reaction, n, m, targs_srcs_rate)
-            if n + m ~= size(targs_srcs_rate, 2) - 1
+            if n + m ~= size(targs_srcs_rate, 2) - 2
                 error('Input order and the reaction scheme do not match')
             end
-            if n == 1 && m == 0
-                reaction.AddInjection(targs_srcs_rate)
-                return;
+            if ~all(strcmp(targs_srcs_rate(:,n+1), '<-'))
+                error('Reaction %d is inconsistent', find(~strcmp(targs_srcs_rate(:,n+1), '<-')));
             end
             if any(size(reaction.Rate) < [n, m]) || isempty(reaction.Rate{n, m})
                 reaction.TrgIndex{n,m} = reaction.ID(targs_srcs_rate(:,1:n));
-                reaction.SrcIndex{n,m} = reaction.ID(targs_srcs_rate(:,n+1:end-1));
+                reaction.SrcIndex{n,m} = reaction.ID(targs_srcs_rate(:,n+2:end-1));
                 reaction.Rate{n,m} = cell2mat(targs_srcs_rate(:,end));
             else
                 reaction.TrgIndex{n,m} = [reaction.TrgIndex{n,m}; reaction.ID(targs_srcs_rate(:,1:n))];
@@ -140,22 +139,25 @@ classdef Reaction < handle
         % Add reaction A1 + ... + An <- S1 + ... + Sm where
         % targ_rate = {A1, ..., Am, S1, ..., Sn, k, tf1, ..., tfn; ...}
         function AddReactionWithCatalyst(reaction, n, m, targ_srcs_rate_catalysts)
-            if n + 2*m ~= size(targ_srcs_rate_catalysts, 2) - 1
+            if n + 2*m ~= size(targ_srcs_rate_catalysts, 2) - 2
                 error('Input order and the reaction scheme do not match')
             end
             if m == 0 % if it is injection,
                 error('Reaction with Catalysts cannot be zero-order reaction')
             end
+            if ~all(strcmp(targ_srcs_rate_catalysts(:,n+1), '<-'))
+                error('Reaction %d is inconsistent', find(~strcmp(targ_srcs_rate_catalysts(:,n+1), '<-')));
+            end
             if any(size(reaction.RateWithCatalyst) < [n, m]) || isempty(reaction.RateWithCatalyst{n, m})
-                reaction.TrgIndexWithCatalyst{n,m} = reaction.ID(targ_srcs_rate_catalysts(:,1));
-                reaction.SrcIndexWithCatalyst{n,m} = reaction.ID(targ_srcs_rate_catalysts(:,2:m + 1));
-                reaction.RateWithCatalyst{n,m} = cell2mat(targ_srcs_rate_catalysts(:,m + 2));
-                reaction.IsNOTCatalyst{n,m} = ~cell2mat(targ_srcs_rate_catalysts(:,m + 3 : end));
+                reaction.TrgIndexWithCatalyst{n,m} = reaction.ID(targ_srcs_rate_catalysts(:,1:n));
+                reaction.SrcIndexWithCatalyst{n,m} = reaction.ID(targ_srcs_rate_catalysts(:,n+2:n+m+1));
+                reaction.RateWithCatalyst{n,m} = cell2mat(targ_srcs_rate_catalysts(:,n+m+2));
+                reaction.IsNOTCatalyst{n,m} = ~cell2mat(targ_srcs_rate_catalysts(:,n+m+3 : end));
             else
                 reaction.TrgIndexWithCatalyst{n,m} = [reaction.TrgIndexWithCatalyst{n,m}; reaction.ID(targ_srcs_rate_catalysts(:,1:n))];
-                reaction.SrcIndexWithCatalyst{n,m} = [reaction.SrcIndexWithCatalyst{n,m}; reaction.ID(targ_srcs_rate_catalysts(:,n+1:n+m))];
-                reaction.RateWithCatalyst{n,m} = [reaction.RateWithCatalyst{n,m}; cell2mat(targ_srcs_rate_catalysts(:,n+m+1))];
-                reaction.IsNOTCatalyst{n,m} = [reaction.IsNOTCatalyst{n,m}; ~cell2mat(targ_srcs_rate_catalysts(:,m + 3 : n+m+2:end))];
+                reaction.SrcIndexWithCatalyst{n,m} = [reaction.SrcIndexWithCatalyst{n,m}; reaction.ID(targ_srcs_rate_catalysts(:,n+2:n+m+1))];
+                reaction.RateWithCatalyst{n,m} = [reaction.RateWithCatalyst{n,m}; cell2mat(targ_srcs_rate_catalysts(:,n+m+2))];
+                reaction.IsNOTCatalyst{n,m} = [reaction.IsNOTCatalyst{n,m}; ~cell2mat(targ_srcs_rate_catalysts(:,n+m+3 : end))];
             end
         end
 

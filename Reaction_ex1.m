@@ -15,10 +15,10 @@
 chemicals = {'A', 'B', 'C'};
 reaction = Reaction(chemicals);
 reaction.AddReaction(1, 2, { ... second order
-    'B', 'A', 'A',    0.001; ... B <- 2A = A + A
+    'B', '<-', 'A', 'A',    0.001; ... B <- 2A = A + A
     });
 reaction.AddReaction(1, 1, { ... first order
-    'C', 'B',  0.0015; ... C <- B
+    'C', '<-', 'B',  0.0015; ... C <- B
     });
 % show reactions
 reaction.show();
