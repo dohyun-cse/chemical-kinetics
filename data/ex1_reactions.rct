@@ -1,0 +1,31 @@
+% Comment starts with %
+% Spacing does not matter
+% 
+% Chemical name block starts with <CHEMICALS>
+% Reaction block starts with <REACTIONS>
+%
+% Chemical name block should come before reaction block.
+%
+%
+% Chemical names should be:
+%   1. One-liner
+%   2. No white-spaces
+%   3. No '-', '<', '>', '(', ')'
+%
+% Reaction should be:
+%   1. One-liner
+%   2. Chemicals are seperated by +
+%   3. Two reaction arrows are allowed: ->, <->
+%   4. Reaction rates should be at the end of reaction
+%      Reversible reaction (<->) should have two reaction rates
+%   5. Catalyst name should be in parenthesis
+%
+
+<CHEMICALS>   
+    A % Chemical 1
+    B % Chemical 2
+    C % Chemical 3
+
+<REACTIONS>
+    A + A    -> B  0.001       % This is a second order reaction
+    B        -> C  0.0015      % This is a first order reaction

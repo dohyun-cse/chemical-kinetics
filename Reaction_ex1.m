@@ -12,14 +12,9 @@
 % Developed using MATLAB 2023b on Darwin 23.3.0 Darwin Kernel Version 23.3.0: Wed Dec 20 21:30:44 PST 2023; root:xnu-10002.81.5~7/RELEASE_ARM64_T6000 arm64
 
 %% Define Reaction
-chemicals = {'A', 'B', 'C'};
-reaction = Reaction(chemicals);
-reaction.AddReaction(2, 1, { ... second order
-    'A', 'A', '->', 'B',    0.001; ... B <- 2A = A + A
-    });
-reaction.AddReaction(1, 1, { ... first order
-    'B', '->', 'C',  0.0015; ... C <- B
-    });
+filepath = strrep(mfilename('fullpath'), mfilename, '');
+relpath = 'data/ex1_reactions.rct';
+reaction = reaction_from(strjoin({filepath, relpath}, ''));
 % show reactions
 reaction.show();
 disp(' ');
@@ -38,8 +33,8 @@ y0 = reaction.setInitialCondition({ ...
 %% Plot solution
 figure;
 hold on;
-for i = 1 : length(chemicals)
-    plot(t/60, y(:,i), '--s', 'DisplayName', chemicals{i});
+for i = 1 : length(reaction.chemicals)
+    plot(t/60, y(:,i), '--s', 'DisplayName', reaction.chemicals{i});
 end
 legend location ne
 xlabel('time (min)')
