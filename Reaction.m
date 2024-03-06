@@ -26,18 +26,24 @@ classdef Reaction < handle
     %
     % <USAGE>
     %   reaction = Reaction({'A', 'B', 'C'});
-    %   reaction.AddReaction({
+    %   reaction.AddReaction(1, 1, { ... produce 1 chem from 1 chem
     %       'A', 'B', 1.0; ... A <- B with rate 1
     %       'B', 'C', 2.0; ... B <- C with rate 2
     %       });
-    %   reaction.AddReaction({
+    %   reaction.AddReaction(1, 2, { ... produce 1 chem from 2 chem
     %       'B', 'A', 'A', 1.0; ... B <- 2A = A + A with rate 1.0
     %       });
-    %   reaction.AddPowerReaction({
-    %       '3B', '2A', 1.0; ... 3B <- 2A with rate 1.0
+    %   % reaction with one acting as a catalysts
+    %   reaction.AddReactionWithCatalysts(1, 2, { ... produce 1 chem from 2 chem
+    %       'B', 'A', 'C', 1.0, true, false; ... B + (C) <- A + (C)
+    %       });
+    %   % equivalently,
+    %   reaction.AddReaction(2, 2, { ... produce 2 chem from 2 chem
+    %       'B', 'C', 'A', 'C', 1.0; ... B + (A) <- A + (A)
     %       });
     %   reaction.show() % print all reactions on the command window
     %   reaction.show('%.4f') % print all reactions with formatted rate
+    %   reaction.show_ode() % print ODEs
     %
     %   odefun = @(t, x) reaction.apply(x); % get d[chemicals]/dt
     %   y = ode45(odefun, [t0, tf], y0);
