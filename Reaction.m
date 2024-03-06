@@ -67,28 +67,19 @@ classdef Reaction < handle
         hasInjection = false
         InjectionIndex = zeros(0,1) % [A; ...]
         InjectionRate     = zeros(0,1) % [k; ...]
-        % A <- S1 + ... + Sn with rate k
-        % d[A]/dt  += k[S1]...[Sn]
+        % A1 + ... + An <- S1 + ... + Sm with rate k
+        % d[Ai]/dt += k[S1]...[Sn]
         % d[Si]/dt -= k[S1]...[Sn]
-        hasReaction = false
         TrgIndex = {}
         SrcIndex = {}
         Rate     = {}
         % A <- S1 + ... + Sn with rate k
         % d[A]/dt  += k[S1]...[Sn]
-        % d[Si]/dt -= k[S1]...[Sn]
-        hasReactionWithCatalyst = false
+        % d[Si]/dt -= k[S1]...[Sn] when Si is not a catalyst
         TrgIndexWithCatalyst = {}
         SrcIndexWithCatalyst = {}
         RateWithCatalyst     = {}
         IsCatalyst           = {}
-        % A1 + ... + An <- S1 + ... + Sm with rate k
-        % d[Ai]/dt += k[S1]...[Sn]
-        % d[Si]/dt -= k[S1]...[Sn]
-        hasCompReaction = false
-        CompTrgIndex = {}
-        CompSrcIndex = {}
-        CompRate     = {}
     end
     methods
         % Create a reaction with given chemical names
@@ -119,60 +110,13 @@ classdef Reaction < handle
             if size(targ_rate, 2) ~= 2
                 error('Input must be (# of reaction) x 2, where each columns are: targ, rate')
             end
-            reaction.hasInjection = true;
             reaction.InjectionIndex = [reaction.InjectionIndex; reaction.ID(targ_rate(:,1))];
             reaction.InjectionRate = [reaction.InjectionRate; cell2mat(targ_rate(:,3))];
         end
 
-        % Add reaction A <- S1 + ... + Sn where
-        % targ_rate = {A, S1, ..., Sn, k; ...} with n > 0
-        function AddReaction(reaction, order, targ_srcs_rate)
-            if order ~= size(targ_srcs_rate, 2) - 2
-                error('Input order and the reaction scheme do not match.')
-            end
-            if order == 0 % if it is injection,
-                reaction.AddInjection(targ_srcs_rate);
-                return;
-            end
-            reaction.hasReaction = true;
-            if length(reaction.Rate) < order || isempty(reaction.Rate{order})
-                reaction.TrgIndex{order} = reaction.ID(targ_srcs_rate(:,1));
-                reaction.SrcIndex{order} = reaction.ID(targ_srcs_rate(:,2:end-1));
-                reaction.Rate{order} = cell2mat(targ_srcs_rate(:,end));
-            else
-                reaction.TrgIndex{order} = [reaction.TrgIndex{order}; reaction.ID(targ_srcs_rate(:,1))];
-                reaction.SrcIndex{order} = [reaction.SrcIndex{order}; reaction.ID(targ_srcs_rate(:,2:end-1))];
-                reaction.Rate{order} = [reaction.Rate{order}; cell2mat(targ_srcs_rate(:,end))];
-            end
-        end
-
-        % Add reaction A <- S1 + ... + Sn where
-        % targ_rate = {A, S1, ..., Sn, k; ...} with n > 0
-        function AddReactionWithCatalyst(reaction, order, targ_srcs_rate_catalysts)
-            if order ~= (size(targ_srcs_rate_catalysts, 2) - 2)/2
-                error('Input order and the reaction scheme do not match.')
-            end
-            if order == 0 % if it is injection,
-                error('Reaction with Catalysts cannot be zero-order reaction')
-            end
-            reaction.hasReactionWithCatalyst = true;
-            if length(reaction.Rate) < order || isempty(reaction.Rate{order})
-                reaction.TrgIndexWithCatalyst{order} = reaction.ID(targ_srcs_rate_catalysts(:,1));
-                reaction.SrcIndexWithCatalyst{order} = reaction.ID(targ_srcs_rate_catalysts(:,2:order + 1));
-                reaction.RateWithCatalyst{order} = cell2mat(targ_srcs_rate_catalysts(:,order + 2));
-                reaction.IsCatalyst{order} = cell2mat(targ_srcs_rate_catalysts(:,order + 3 : end));
-            else
-                reaction.TrgIndexWithCatalyst{order} = [reaction.TrgIndexWithCatalyst{order}; reaction.ID(targ_srcs_rate_catalysts(:,1))];
-                reaction.SrcIndexWithCatalyst{order} = [reaction.SrcIndexWithCatalyst{order}; reaction.ID(targ_srcs_rate_catalysts(:,2:order + 1))];
-                reaction.RateWithCatalyst{order} = [reaction.RateWithCatalyst{order}; cell2mat(targ_srcs_rate_catalysts(:,order + 2))];
-                reaction.IsCatalyst{order} = [reaction.IsCatalyst{order}; cell2mat(targ_srcs_rate_catalysts(:,order + 3 : end))];
-            end
-        end
-
         % Add reaction A1 + ... + An <- S1 + ... + Sm where
         % targ_rate = {A1, ..., An, S1, ..., Sm, k; ...} with n,m > 0
-        function AddCompositeReaction(reaction, n, m, targs_srcs_rate)
-            reaction.hasCompReaction = true;
+        function AddReaction(reaction, n, m, targs_srcs_rate)
             if n + m ~= size(targs_srcs_rate, 2) - 1
                 error('Input order and the reaction scheme do not match')
             end
@@ -180,14 +124,36 @@ classdef Reaction < handle
                 reaction.AddInjection(targs_srcs_rate)
                 return;
             end
-            if any(size(reaction.CompRate) < [n, m]) || isempty(reaction.CompRate{n, m})
-                reaction.CompTrgIndex{n,m} = reaction.ID(targs_srcs_rate(:,1:n));
-                reaction.CompSrcIndex{n,m} = reaction.ID(targs_srcs_rate(:,n+1:end-1));
-                reaction.CompRate{n,m} = cell2mat(targs_srcs_rate(:,end));
+            if any(size(reaction.Rate) < [n, m]) || isempty(reaction.Rate{n, m})
+                reaction.TrgIndex{n,m} = reaction.ID(targs_srcs_rate(:,1:n));
+                reaction.SrcIndex{n,m} = reaction.ID(targs_srcs_rate(:,n+1:end-1));
+                reaction.Rate{n,m} = cell2mat(targs_srcs_rate(:,end));
             else
-                reaction.CompTrgIndex{n,m} = [reaction.CompTrgIndex{n,m}; reaction.ID(targs_srcs_rate(:,1:n))];
-                reaction.CompSrcIndex{n,m} = [reaction.CompSrcIndex{n,m}; reaction.ID(targs_srcs_rate(:,n+1:end-1))];
-                reaction.CompRate{n,m} = [reaction.CompRate{n,m}; cell2mat(targs_srcs_rate(:,end))];
+                reaction.TrgIndex{n,m} = [reaction.TrgIndex{n,m}; reaction.ID(targs_srcs_rate(:,1:n))];
+                reaction.SrcIndex{n,m} = [reaction.SrcIndex{n,m}; reaction.ID(targs_srcs_rate(:,n+1:end-1))];
+                reaction.Rate{n,m} = [reaction.Rate{n,m}; cell2mat(targs_srcs_rate(:,end))];
+            end
+        end
+
+        % Add reaction A1 + ... + An <- S1 + ... + Sm where
+        % targ_rate = {A1, ..., Am, S1, ..., Sn, k, tf1, ..., tfn; ...}
+        function AddReactionWithCatalyst(reaction, n, m, targ_srcs_rate_catalysts)
+            if n + 2*m ~= size(targ_srcs_rate_catalysts, 2) - 1
+                error('Input order and the reaction scheme do not match')
+            end
+            if m == 0 % if it is injection,
+                error('Reaction with Catalysts cannot be zero-order reaction')
+            end
+            if any(size(reaction.RateWithCatalyst) < [n, m]) || isempty(reaction.RateWithCatalyst{n, m})
+                reaction.TrgIndexWithCatalyst{n,m} = reaction.ID(targ_srcs_rate_catalysts(:,1));
+                reaction.SrcIndexWithCatalyst{n,m} = reaction.ID(targ_srcs_rate_catalysts(:,2:m + 1));
+                reaction.RateWithCatalyst{n,m} = cell2mat(targ_srcs_rate_catalysts(:,m + 2));
+                reaction.IsCatalyst{n,m} = cell2mat(targ_srcs_rate_catalysts(:,m + 3 : end));
+            else
+                reaction.TrgIndexWithCatalyst{n,m} = [reaction.TrgIndexWithCatalyst{n,m}; reaction.ID(targ_srcs_rate_catalysts(:,1:n))];
+                reaction.SrcIndexWithCatalyst{n,m} = [reaction.SrcIndexWithCatalyst{n,m}; reaction.ID(targ_srcs_rate_catalysts(:,n+1:n+m))];
+                reaction.RateWithCatalyst{n,m} = [reaction.RateWithCatalyst{n,m}; cell2mat(targ_srcs_rate_catalysts(:,n+m+1))];
+                reaction.IsCatalyst{n,m} = [reaction.IsCatalyst{n,m}; cell2mat(targ_srcs_rate_catalysts(:,m + 3 : n+m+2:end))];
             end
         end
 
@@ -198,69 +164,48 @@ classdef Reaction < handle
             end
             max_name_length = max(cellfun(@length, reaction.chemicals));
             name_format = ['% ' num2str(max_name_length) 's'];
-            if (reaction.hasInjection)
-                for i = 1 : length(reaction.InjectionRate)
-                    fprintf(['(rate = ' rate_format ') ' name_format '\n'], ...
-                        reaction.InjectionRate(i), ...
-                        reaction.chemicals{reaction.InjectionIndex});
-                end
+            for i = 1 : length(reaction.InjectionRate)
+                fprintf(['(rate = ' rate_format ') ' name_format '\n'], ...
+                    reaction.InjectionRate(i), ...
+                    reaction.chemicals{reaction.InjectionIndex});
             end
-            if (reaction.hasReaction)
-                for order = 1 : length(reaction.Rate)
-                    if isempty(reaction.Rate{order})
+            for n = 1 : size(reaction.Rate, 1)
+                for m = 1 : size(reaction.Rate, 2)
+                    if isempty(reaction.Rate{n,m})
                         continue;
                     end
                     format = strjoin({ ...
                         '(rate = ' rate_format ') ', ...
-                        name_format ' <- ', ...
-                        strjoin(repmat({name_format}, 1, order), ' + '), ...
+                        strjoin(repmat({name_format}, 1, n), ' + ') ' <- ', ...
+                        strjoin(repmat({name_format}, 1, m), ' + '), ...
                         '\n'});
-                    for i = 1 : length(reaction.Rate{order})
+                    for i = 1 : length(reaction.Rate{n,m})
                         fprintf(format, ...
-                            reaction.Rate{order}(i), ...
-                            reaction.chemicals{reaction.TrgIndex{order}(i)}, ...
-                            reaction.chemicals{reaction.SrcIndex{order}(i, :)});
+                            reaction.Rate{n,m}(i), ...
+                            reaction.chemicals{reaction.TrgIndex{n,m}(i, :)}, ...
+                            reaction.chemicals{reaction.SrcIndex{n,m}(i, :)});
                     end
                 end
             end
-            if (reaction.hasReactionWithCatalyst)
-                for order = 1 : length(reaction.RateWithCatalyst)
-                    if isempty(reaction.RateWithCatalyst{order})
+            for n = 1 : size(reaction.RateWithCatalyst, 1)
+                for m = 1 : size(reaction.RateWithCatalyst, 2)
+                    if isempty(reaction.RateWithCatalyst{n, m})
                         continue;
                     end
                     format = strjoin({ ...
                         '(rate = ' rate_format ') ', ...
-                        name_format ' <- ', ...
-                        strjoin(repmat({name_format}, 1, order), ' + '), ...
-                        ' /\tCatalysts: ', ...
-                        strjoin(repmat({name_format}, 1, nnz(reaction.IsCatalyst{order}(i,:))), ', '), ...
-                        '\n'});
-                    for i = 1 : length(reaction.RateWithCatalyst{order})
+                        strjoin(repmat({name_format}, 1, n), ' + '), ...
+                        ' <- ', ...
+                        strjoin(repmat({name_format}, 1, m), ' + '), ...
+                        ' /\t'});
+                    for i = 1 : length(reaction.RateWithCatalyst{n,m})
                         fprintf(format, ...
-                            reaction.RateWithCatalyst{order}(i), ...
-                            reaction.chemicals{reaction.TrgIndexWithCatalyst{order}(i)}, ...
-                            reaction.chemicals{reaction.SrcIndexWithCatalyst{order}(i, :)}, ...
-                            reaction.chemicals{reaction.SrcIndexWithCatalyst{order}(i, reaction.IsCatalyst{order}(i,:))});
-                    end
-                end
-            end
-            if (reaction.hasCompReaction)
-                for n = 1 : size(reaction.CompRate, 1)
-                    for m = 1 : size(reaction.CompRate, 2)
-                        if isempty(reaction.CompRate{n,m})
-                            continue;
-                        end
-                        format = strjoin({ ...
-                            '(rate = ' rate_format ') ', ...
-                            strjoin(repmat({name_format}, 1, n), ' + ') ' <- ', ...
-                            strjoin(repmat({name_format}, 1, m), ' + '), ...
-                            '\n'});
-                        for i = 1 : length(reaction.CompRate{n,m})
-                            fprintf(format, ...
-                                reaction.CompRate{n,m}(i), ...
-                                reaction.chemicals{reaction.CompTrgIndex{n,m}(i)}, ...
-                                reaction.chemicals{reaction.CompSrcIndex{n,m}(i, :)});
-                        end
+                            reaction.RateWithCatalyst{n,m}(i), ...
+                            reaction.chemicals{reaction.TrgIndexWithCatalyst{n,m}(i, :)}, ...
+                            reaction.chemicals{reaction.SrcIndexWithCatalyst{n,m}(i, :)});
+                        fprintf(['Catalysts: ', ...
+                        strjoin(repmat({name_format}, 1, nnz(reaction.IsCatalyst{n,m}(i,:))), ', '), ...
+                        '\n'], reaction.chemicals{reaction.SrcIndexWithCatalyst{n,m}(i, reaction.IsCatalyst{n,m}(i,:))});
                     end
                 end
             end
@@ -276,47 +221,47 @@ classdef Reaction < handle
             for i = 1 : reaction.numChemical
                 odes{i} = sprintf(['d' name_format '/dt = '], reaction.chemicals{i});
             end
-            if (reaction.hasReaction)
-                for order = 1 : length(reaction.Rate)
-                    if isempty(reaction.Rate{order})
+            for n = 1 : size(reaction.Rate, 1)
+                for m = 1 : size(reaction.Rate, 2)
+                    if isempty(reaction.Rate{n,m})
                         continue;
                     end
-                    format = [rate_format '*' strjoin(repmat({name_format}, 1, order),'')];
-                    for i = 1 : length(reaction.TrgIndex{order})
-                        trgidx = reaction.TrgIndex{order}(i);
-                        srcidx = reaction.SrcIndex{order}(i,:);
+                    format = [rate_format '*' strjoin(repmat({name_format}, 1, m),'')];
+                    for i = 1 : length(reaction.TrgIndex{n,m})
+                        trgidx = reaction.TrgIndex{n,m}(i,:);
+                        srcidx = reaction.SrcIndex{n,m}(i,:);
 
-                        str = sprintf(format, reaction.Rate{order}(i), reaction.chemicals{srcidx});
-                        odes{trgidx} = [odes{trgidx}, str];
+                        str = sprintf(format, reaction.Rate{n,m}(i), reaction.chemicals{srcidx});
+                        for j = 1 : n
+                            odes{trgidx(j)} = [odes{trgidx(j)}, str];
+                        end
                         if (strcmp(str(2), '+')), str(2) = '-';
                         else, str(2) = '+';
                         end
-                        for j = 1 : order
+                        for j = 1 : m
                             odes{srcidx(j)} = [odes{srcidx(j)}, str];
                         end
                     end
                 end
             end
-            if (reaction.hasReactionWithCatalyst)
-                for order = 1 : length(reaction.RateWithCatalyst)
-                    if isempty(reaction.RateWithCatalyst{order})
-                        continue;
-                    end
-                    format = [rate_format '*' strjoin(repmat({name_format}, 1, order),'')];
-                    for i = 1 : length(reaction.TrgIndexWithCatalyst{order})
-                        trgidx = reaction.TrgIndexWithCatalyst{order}(i);
-                        srcidx = reaction.SrcIndexWithCatalyst{order}(i,:);
-                        isCatalyst = reaction.IsCatalyst{order}(i,:);
+            for m = 1 : length(reaction.RateWithCatalyst)
+                if isempty(reaction.RateWithCatalyst{m})
+                    continue;
+                end
+                format = [rate_format '*' strjoin(repmat({name_format}, 1, m),'')];
+                for i = 1 : length(reaction.TrgIndexWithCatalyst{m})
+                    trgidx = reaction.TrgIndexWithCatalyst{m}(i);
+                    srcidx = reaction.SrcIndexWithCatalyst{m}(i,:);
+                    isCatalyst = reaction.IsCatalyst{m}(i,:);
 
-                        str = sprintf(format, reaction.RateWithCatalyst{order}(i), reaction.chemicals{srcidx});
-                        odes{trgidx} = [odes{trgidx}, str];
-                        if (strcmp(str(2), '+')), str(2) = '-';
-                        else, str(2) = '+';
-                        end
-                        for j = 1 : order
-                            if ~isCatalyst(j)
-                                odes{srcidx(j)} = [odes{srcidx(j)}, str];
-                            end
+                    str = sprintf(format, reaction.RateWithCatalyst{m}(i), reaction.chemicals{srcidx});
+                    odes{trgidx} = [odes{trgidx}, str];
+                    if (strcmp(str(2), '+')), str(2) = '-';
+                    else, str(2) = '+';
+                    end
+                    for j = 1 : m
+                        if ~isCatalyst(j)
+                            odes{srcidx(j)} = [odes{srcidx(j)}, str];
                         end
                     end
                 end
@@ -339,76 +284,51 @@ classdef Reaction < handle
                 reaction.InjectionRate, ...
                 [reaction.numChemical, 1]);
 
-            % d[chemicals]/dt += k*[src1]...[srcN]
-            for n = 1 : length(reaction.Rate)
-                if isempty(reaction.Rate{n})
-                    continue;
-                end
-                current_reactions = reaction.Rate{n};
-                for i = 1 : n
-                    current_reactions = current_reactions ...
-                        .*y(reaction.SrcIndex{n}(:,i));
-                end
-                z = z + accumarray(...
-                    reaction.TrgIndex{n}, ...
-                    current_reactions, ...
-                    [reaction.numChemical, 1]);
-                for i = 1 : n
+            % d[trg_i]/dt += k*[src1]...[srcN]
+            for n = 1 : size(reaction.Rate, 1)
+                for m = 1 : size(reaction.Rate, 2)
+                    if isempty(reaction.Rate{n, m})
+                        continue;
+                    end
+                    current_reactions = reaction.Rate{n, m};
+                    for i = 1 : m
+                        current_reactions = current_reactions ...
+                            .*y(reaction.SrcIndex{n, m}(:,i));
+                    end
+                    % add reaction to the target
                     z = z + accumarray(...
-                        reaction.SrcIndex{n}(:,i), ...
-                        -current_reactions, ...
+                        reaction.TrgIndex{n, m}(:), ...
+                        repmat(current_reactions, n, 1), ...
+                        [reaction.numChemical, 1]);
+                    % subtract reaction from the source
+                    z = z - accumarray(...
+                        reaction.SrcIndex{n, m}(:), ...
+                        repmat(current_reactions, m, 1), ...
                         [reaction.numChemical, 1]);
                 end
             end
 
-            % d[chemicals]/dt += k*[src1]...[srcN]
-            for n = 1 : size(reaction.CompRate, 1)
-                for m = 1 : size(reaction.CompRate, 2)
-                    if isempty(reaction.CompRate{n, m})
+            % d[trg_i]/dt += k*[src1]...[srcN]
+            for n = 1 : size(reaction.RateWithCatalyst, 1)
+                for m = 1 : size(reaction.RateWithCatalyst, 2)
+                    if isempty(reaction.RateWithCatalyst{n,m})
                         continue;
                     end
-                    current_reactions = reaction.CompRate{n, m};
+                    current_reactions = reaction.RateWithCatalyst{n,m};
                     for i = 1 : m
                         current_reactions = current_reactions ...
-                            .*y(reaction.CompSrcIndex{n, m}(:,i));
+                            .*y(reaction.SrcIndexWithCatalyst{n,m}(:,i));
                     end
-                    for i = 1 : n
-                        z = z + accumarray(...
-                            reaction.CompTrgIndex{n, m}(:,i), ...
-                            current_reactions, ...
-                            [reaction.numChemical, 1]);
-                    end
-                    for i = 1 : m
-                        z = z + accumarray(...
-                            reaction.CompSrcIndex{n, m}(:,i), ...
-                            -current_reactions, ...
-                            [reaction.numChemical, 1]);
-                    end
-                end
-            end
-
-            % d[chemicals]/dt += k*[src1]...[srcN]
-            for n = 1 : length(reaction.RateWithCatalyst)
-                if isempty(reaction.RateWithCatalyst{n})
-                    continue;
-                end
-                current_reactions = reaction.RateWithCatalyst{n};
-                for i = 1 : n
-                    current_reactions = current_reactions ...
-                        .*y(reaction.SrcIndexWithCatalyst{n}(:,i));
-                end
-                z = z + accumarray(...
-                    reaction.TrgIndexWithCatalyst{n}, ...
-                    current_reactions, ...
-                    [reaction.numChemical, 1]);
-                isCatalyst = reaction.IsCatalyst{n};
-                for i = 1 : n
-                    if ~isCatalyst(i)
-                        z = z + accumarray(...
-                            reaction.SrcIndexWithCatalyst{n}(:,i), ...
-                            -current_reactions, ...
-                            [reaction.numChemical, 1]);
-                    end
+                    % add reaction to the target
+                    z = z + accumarray(...
+                        reaction.TrgIndexWithCatalyst{n,m}(:), ...
+                        repmat(current_reactions, n, 1), ...
+                        [reaction.numChemical, 1]);
+                    % subtract reaction from 
+                    z = z - accumarray(...
+                        reaction.SrcIndexWithCatalyst{n,m}(:), ...
+                        repmat(current_reactions, m, 1).*~reaction.IsCatalyst{n,m}(:), ...
+                        [reaction.numChemical, 1]);
                 end
             end
         end
