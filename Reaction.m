@@ -136,8 +136,19 @@ classdef Reaction < handle
             end
         end
 
-        % Add reaction A1 + ... + An <- S1 + ... + Sm where
-        % targ_rate = {A1, ..., Am, S1, ..., Sn, k, tf1, ..., tfn; ...}
+        % Add reaction A1 + ... + An <-> B1 + ... + Bm where
+        % targ_rate = {A1, ..., An, '<->', B1, ..., Bm, k_AB, k_BA; ...} with n,m > 0
+        function AddReversibleReaction(reaction, n, m, targs_srcs_rates)
+            if n + m ~= size(targs_srcs_rates, 2) - 3
+                error('Input order and the reaction scheme do not match')
+            end
+            if ~all(strcmp(targs_srcs_rates(:,n+1), '<->'))
+                error('Reaction %d is inconsistent', find(~strcmp(targs_srcs_rates(:,n+1), '<->')));
+            end
+            targs_srcs_rates(:, n+1) = strrep(targs_srcs_rates(:, n+1), '<->', '->');
+            reaction.AddReaction(n, m, targs_srcs_rates(:,1:end-1)); % forward
+            reaction.AddReaction(m, n, targs_srcs_rates(:, [n+2:n+m+1, n+1, 1:n, end])); % backward
+        end
 
         % Add reaction A1 + ... + An -> B1 + ... + Bm where
         % targ_rate = {A1, ..., An '->' B1, ..., Bn, k, tf1, ..., tfn; ...}
