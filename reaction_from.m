@@ -16,7 +16,6 @@ function reaction_obj = reaction_from(filename)
 %            <CHEMICALS>
 %                A % valid
 %                B % valid
-%                A C % valid, "A C", but not recommended
 %                A-C % invalid, contains -
 %
 %     4. Reaction block starts with <REACTIONS>
@@ -53,7 +52,7 @@ function reaction_obj = reaction_from(filename)
 % Developed using MATLAB 2023b on Darwin 23.3.0 Darwin Kernel Version 23.3.0: Wed Dec 20 21:30:44 PST 2023; root:xnu-10002.81.5~7/RELEASE_ARM64_T6000 arm64
 
 %%
-name_cannot_have_these = {'-', '<', '>', '(', ')'};
+name_cannot_have_these = {' ', '-', '<', '>', '(', ')'};
 % read file as text
 text = fileread(filename);
 % and split each lines
@@ -64,6 +63,8 @@ text = regexprep(text, '[\s]*%(.*)', '');
 text = regexprep(text, '\s+$', '');
 % remove empty lines
 text = text(strlength(text) > 0);
+
+
 % find chemical name block
 name_starts_at = find(strcmp(text, '<CHEMICALS>'));
 if isempty(name_starts_at)
@@ -83,6 +84,7 @@ end
 if name_starts_at > reaction_starts_at
     error('Chemical name block should appear before reaction block');
 end
+
 % parse names
 names = text(name_starts_at + 1 : reaction_starts_at - 1);
 names = strrep(names, ' ', '');
@@ -91,16 +93,19 @@ isInvalid = contains(names, name_cannot_have_these);
 if any(isInvalid)
     error('There are %d names that contain invalid characters.', nnz(isInvalid));
 end
+% create reaction object from names
 reaction_obj = Reaction(names);
-% Parse reactions
+
+
+% Prepare reactions
 reactions = text(reaction_starts_at + 1 : end);
-reactions = regexprep(reactions, '^[ \t]+', '');
-for i = 1 : length(reactions)
+reactions = regexprep(reactions, '^[ \t]+', ''); % remove leading spaces
+for i = 1 : length(reactions) % for each reaction
     reaction = reactions{i};
-    tokens = split(reaction, ' ');
-    tokens = tokens(strlength(tokens) > 0);
+    tokens = split(reaction, ' '); % seperate by space
+    tokens = tokens(strlength(tokens) > 0); % remove empty lines
     tokens(strcmp(tokens, '+')) = []; % remove addition
-    seperator = contains(tokens, '-');
+    seperator = contains(tokens, '-'); % find reaction arrow
     idx = find(seperator);
     if isempty(idx)
         error('Cannot find reaction arrow in reaction %d', i);
@@ -108,32 +113,35 @@ for i = 1 : length(reactions)
     if length(idx) > 1
         error('There are more than 1 reaction arrow in reaction %d', i);
     end
+
+    % add reaction to reaction object
     seperator = tokens{seperator};
     switch seperator
-        case '->'
-            n = idx - 1;
-            m = length(tokens) - n - 2;
-            tokens{end} = str2double(tokens{end});
+        case '->' % if irreversible
+            n = idx - 1; % the number of source
+            m = length(tokens) - n - 2; % the number of production
+            tokens{end} = str2double(tokens{end}); % reaction rate
+            % find catalyst
             isCatalyst = [contains(tokens(1:end-1), '(');false];
-            if nnz(isCatalyst) == 0
-                reaction_obj.AddReaction(n, m, tokens(:).');
-            else
+            if nnz(isCatalyst) == 0 % if there is no catalyst,
+                reaction_obj.AddReaction(n, m, tokens(:).'); % just add
+            else % if there is catalyst
                 if nnz(isCatalyst(n+1:end))
                     error('Produced chemical should not have catalyst');
                 end
-                notSource = true(size(tokens));
-                notSource(1:n) = false;
-                tokens(notSource & isCatalyst) = [];
-                m = length(tokens) - n - 2;
+                % remove paranthesis from the catalyst
                 tokens(1:n) = strrep(strrep(tokens(1:n), '(', ''), ')', '');
+                % append catalyst tf table
                 tokens(end + 1 : end + n) = num2cell(isCatalyst(1:n));
+                % add
                 reaction_obj.AddReactionWithCatalyst(n, m, tokens(:).');
             end
-        case '<->'
-            n = idx - 1;
-            m = length(tokens) - n - 3;
-            tokens{end} = str2double(tokens{end});
-            tokens{end-1} = str2double(tokens{end-1});
+        case '<->' % if reversible
+            n = idx - 1; % the number of source
+            m = length(tokens) - n - 3; % the number of production
+            tokens{end-1} = str2double(tokens{end-1}); % forward rate
+            tokens{end} = str2double(tokens{end});     % backward rate
+            % add
             reaction_obj.AddReversibleReaction(n, m, tokens(:).');
         otherwise
             error('Unknown reaction arrow "%s" in reaction %d', seperator, i);
