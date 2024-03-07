@@ -48,7 +48,7 @@ function reaction_obj = reaction_from(filename)
 
 % Copyright 2024 Dohyun Kim / CC BY-NC
 
-% Contact: dhkim.cse@gmail.com
+% Contact: dohyun_kim@brown.edu
 % Developed using MATLAB 2023b on Darwin 23.3.0 Darwin Kernel Version 23.3.0: Wed Dec 20 21:30:44 PST 2023; root:xnu-10002.81.5~7/RELEASE_ARM64_T6000 arm64
 
 %%
