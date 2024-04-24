@@ -118,36 +118,76 @@ classdef Reaction < handle
 
         % Add reaction A1 + ... + An -> B1 + ... + Bm where
         % targ_rate = {A1, ..., An, '->', B1, ..., Bm, k; ...} with n,m > 0
-        function AddReaction(reaction, n, m, targs_srcs_rate)
-            if n + m ~= size(targs_srcs_rate, 2) - 2
-                error('Input order and the reaction scheme do not match')
-            end
-            if ~all(strcmp(targs_srcs_rate(:,n+1), '->'))
-                error('Reaction %d is inconsistent', find(~strcmp(targs_srcs_rate(:,n+1), '->')));
-            end
-            if any(size(reaction.Rate) < [n, m]) || isempty(reaction.Rate{n, m})
-                reaction.SrcIndex{n,m} = reaction.ID(targs_srcs_rate(:,1:n));
-                reaction.TrgIndex{n,m} = reaction.ID(targs_srcs_rate(:,n+2:end-1));
-                reaction.Rate{n,m} = cell2mat(targs_srcs_rate(:,end));
-            else
-                reaction.SrcIndex{n,m} = [reaction.SrcIndex{n,m}; reaction.ID(targs_srcs_rate(:,1:n))];
-                reaction.TrgIndex{n,m} = [reaction.TrgIndex{n,m}; reaction.ID(targs_srcs_rate(:,n+2:end-1))];
-                reaction.Rate{n,m} = [reaction.Rate{n,m}; cell2mat(targs_srcs_rate(:,end))];
-            end
+        function AddReaction(reaction, n, m, varargin)
+          narginchk(3, 4);
+          if size(varargin{1}, 2) ~= n + m + 1 + (2 - length(varargin))
+            error('Input reaction and the order does not match');
+          end
+          if ~all(strcmp(varargin{1}(:,n+1), '->'))
+            error('Only irreversible reaction with order n + m is allowed.');
+          end
+          srcs = varargin{1}(:,1:n);
+          targs = varargin{1}(:,n+1 + (1:m));
+          switch length(varargin)
+            case 1
+              rates = cell2mat(varargin{1}(:, n + m + 2));
+            case 2
+              rates = varargin{2};
+          end
+          if any(size(reaction.Rate) < [n, m]) || isempty(reaction.Rate{n, m})
+              reaction.SrcIndex{n,m} = reaction.ID(srcs);
+              reaction.TrgIndex{n,m} = reaction.ID(targs);
+              reaction.Rate{n,m} = rates;
+          else
+              reaction.SrcIndex{n,m} = [reaction.SrcIndex{n,m}; reaction.ID(srcs)];
+              reaction.TrgIndex{n,m} = [reaction.TrgIndex{n,m}; reaction.ID(targs)];
+              reaction.Rate{n,m} = [reaction.Rate{n,m}; rates(:)];
+          end
         end
 
         % Add reaction A1 + ... + An <-> B1 + ... + Bm where
         % targ_rate = {A1, ..., An, '<->', B1, ..., Bm, k_AB, k_BA; ...} with n,m > 0
-        function AddReversibleReaction(reaction, n, m, targs_srcs_rates)
-            if n + m ~= size(targs_srcs_rates, 2) - 3
-                error('Input order and the reaction scheme do not match')
-            end
-            if ~all(strcmp(targs_srcs_rates(:,n+1), '<->'))
-                error('Reaction %d is inconsistent', find(~strcmp(targs_srcs_rates(:,n+1), '<->')));
-            end
-            targs_srcs_rates(:, n+1) = strrep(targs_srcs_rates(:, n+1), '<->', '->');
-            reaction.AddReaction(n, m, targs_srcs_rates(:,1:end-1)); % forward
-            reaction.AddReaction(m, n, targs_srcs_rates(:, [n+2:n+m+1, n+1, 1:n, end])); % backward
+        function AddReversibleReaction(reaction, n, m, varargin)
+          narginchk(3, 5);
+          if size(varargin{1}, 2) ~= n + m + 1 + (3 - length(varargin))
+            error('Input reaction and the order does not match');
+          end
+          if ~all(strcmp(varargin{1}(:,n+1), '<->'))
+            error('Only reversible reaction with order n + m is allowed.');
+          end
+          srcs = varargin{1}(:,1:n);
+          targs = varargin{1}(:,n+1 + (1:m));
+          switch length(varargin)
+            case 1
+              forward_rates = cell2mat(varargin{1}(:, n + m + 2));
+              backward_rates = cell2mat(varargin{1}(:, n + m + 3));
+            case 2
+              forward_rates = varargin{2}(:,1);
+              backward_rates = varargin{2}(:,2);
+            case 3
+              forward_rates = varargin{2};
+              backward_rates = varargin{3};
+          end
+          % forward
+          if any(size(reaction.Rate) < [n, m]) || isempty(reaction.Rate{n, m})
+              reaction.SrcIndex{n,m} = reaction.ID(srcs);
+              reaction.TrgIndex{n,m} = reaction.ID(targs);
+              reaction.Rate{n,m} = forward_rates;
+          else
+              reaction.SrcIndex{n,m} = [reaction.SrcIndex{n,m}; reaction.ID(srcs)];
+              reaction.TrgIndex{n,m} = [reaction.TrgIndex{n,m}; reaction.ID(targs)];
+              reaction.Rate{n,m} = [reaction.Rate{n,m}; forward_rates(:)];
+          end
+          % backward
+          if any(size(reaction.Rate) < [m, n]) || isempty(reaction.Rate{m, n})
+              reaction.SrcIndex{m,n} = reaction.ID(targs);
+              reaction.TrgIndex{m,n} = reaction.ID(srcs);
+              reaction.Rate{m,n} = backward_rates;
+          else
+              reaction.SrcIndex{m,n} = [reaction.SrcIndex{m,n}; reaction.ID(targs)];
+              reaction.TrgIndex{m,n} = [reaction.TrgIndex{m,n}; reaction.ID(srcs)];
+              reaction.Rate{m,n} = [reaction.Rate{m,n}; backward_rates(:)];
+          end
         end
 
         % Add reaction A1 + ... + An -> B1 + ... + Bm where
